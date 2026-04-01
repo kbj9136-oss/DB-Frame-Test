@@ -99,8 +99,8 @@ CREATE POLICY "auth_read"  ON model_test_cases FOR SELECT USING (auth.role() = '
 CREATE POLICY "auth_write" ON model_test_cases FOR INSERT WITH CHECK (auth.role() = 'authenticated');
 
 [3단계] 이 HTML 파일에서 아래 두 줄 수정
-  const SUPABASE_URL  = 'https://YOUR_PROJECT_ID.supabase.co';
-  const SUPABASE_ANON = 'YOUR_ANON_KEY';
+    const SUPABASE_URL  = 'https://xdpdpbenynpzjfrvnoyf.supabase.co';
+    const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhkcGRwYmVueW5wempmcnZub3lmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxMTI5MTIsImV4cCI6MjA4ODY4ODkxMn0.Z8A4_Sm1BOR1wrnu1M0xBRBdi2PhZ8ltI28XNuO9hPg';
 
   → Project Settings > API 에서 확인
 
@@ -1095,8 +1095,8 @@ function bindButtons() {
 
 
     // ★ 여기에 Supabase 프로젝트 정보를 입력하세요
-    const SUPABASE_URL  = 'https://YOUR_PROJECT_ID.supabase.co';
-    const SUPABASE_ANON = 'YOUR_ANON_KEY';
+    const SUPABASE_URL  = 'https://xdpdpbenynpzjfrvnoyf.supabase.co';
+    const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhkcGRwYmVueW5wempmcnZub3lmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxMTI5MTIsImV4cCI6MjA4ODY4ODkxMn0.Z8A4_Sm1BOR1wrnu1M0xBRBdi2PhZ8ltI28XNuO9hPg';
 
     const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 
