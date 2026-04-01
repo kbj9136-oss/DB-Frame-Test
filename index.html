@@ -1102,6 +1102,7 @@ function bindButtons() {
 
     // ── 전역 상태 ──
     let currentUser = null;
+    let wireframeMode = false;  // 와이어프레임 미리보기 모드
     let propellerList = [];
   let propSortKey = 'created_at';  // 정렬 기준 컬럼
   let propSortAsc = false;          // 정렬 방향 (기본: 최신순)
@@ -1113,21 +1114,36 @@ function bindButtons() {
       const prevUser = currentUser;
       currentUser = session?.user ?? null;
       if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
-        // 로그인 성공 시 버튼 상태 복원 (sbLogin finally에서 처리되지만 이중 보장)
+        // 로그인 성공 시 버튼 상태 복원
         const loginBtn = document.getElementById('sb-login-btn');
         if (loginBtn) { loginBtn.disabled = false; loginBtn.textContent = '로그인'; }
+        // 와이어프레임 모드 중에는 세션 자동 이동 차단
+        if (wireframeMode) return;
         // 최초 로그인(prevUser가 없을 때)에만 대시보드로 이동
         if (!prevUser && currentUser) {
           showScreen(1);
           loadDashboard();
         }
       } else if (event === 'SIGNED_OUT') {
-        showScreen(0);
+        if (!wireframeMode) showScreen(0);
       }
     });
 
     // ── 로그인 ──
-    async function sbLogin() {
+    
+    // ── 와이어프레임 미리보기 진입 (세션 정리 후 UI만 표시) ──
+    async function enterWireframeMode() {
+      wireframeMode = true;
+      // 기존 Supabase 세션 정리 (백그라운드, 결과 무관)
+      try { await _supabase.auth.signOut(); } catch(_) {}
+      currentUser = null;
+      // 에러 메시지 초기화
+      const err = document.getElementById('sb-error');
+      if (err) err.textContent = '';
+      showScreen(1);
+    }
+
+async function sbLogin() {
       const email = document.getElementById('sb-email').value.trim();
       const pw    = document.getElementById('sb-pw').value;
       const btn   = document.getElementById('sb-login-btn');
@@ -1193,6 +1209,7 @@ function bindButtons() {
 
     // ── 로그아웃 ──
     async function sbLogout() {
+      wireframeMode = false;  // 와이어프레임 모드 해제
       await _supabase.auth.signOut();
     }
 
@@ -1586,7 +1603,7 @@ function bindButtons() {
         <div style="font-size:11px;color:#AAA;">또는</div>
         <div style="flex:1;height:1px;background:#EEE;"></div>
       </div>
-      <button onclick="showScreen(1)"
+      <button onclick="enterWireframeMode()"
         style="width:100%;padding:10px;background:#F5F7FA;color:#555;border:1.5px solid #DDD;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">
         🖼️ 와이어프레임 미리보기 (Supabase 없이)
       </button>
@@ -3285,17 +3302,17 @@ function bindButtons() {
     if (!email || !pw) { if(msgEl) { msgEl.style.color='#DC2626'; msgEl.textContent='이메일과 비밀번호는 필수입니다.'; } return; }
     if (pw.length < 8) { if(msgEl) { msgEl.style.color='#DC2626'; msgEl.textContent='비밀번호는 8자 이상이어야 합니다.'; } return; }
     try {
-      // Supabase Admin SDK는 서버사이드 전용 → signUp으로 계정 생성 (이메일 확인 없이)
-      const { data, error } = await _supabase.auth.signUp({
+      // Supabase signUp으로 계정 생성 (현재 세션 보존을 위해 임시 클라이언트 사용)
+      const adminClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+      const { data, error } = await adminClient.auth.signUp({
         email, password: pw,
-        options: { data: { organization: org || '', role } }
+        options: { data: { organization: org || '', role }, emailRedirectTo: window.location.href }
       });
       if (error) throw error;
-      // user_roles 테이블에 역할 등록
-      if (data.user) {
-        await _supabase.from('user_roles').upsert({ user_id: data.user.id, role }, { onConflict: 'user_id' });
-      }
-      if(msgEl) { msgEl.style.color='#166534'; msgEl.textContent=`✅ ${email} 계정 생성 완료 (역할: ${role}). 사용자에게 임시 비밀번호를 전달해 주세요.`; }
+      // 현재 관리자 세션은 유지 (adminClient를 별도로 사용했으므로 영향 없음)
+      // user_roles 테이블에 역할 등록 (이메일 기준)
+      await _supabase.from('user_roles').upsert({ email, role }, { onConflict: 'email' });
+      if(msgEl) { msgEl.style.color='#166534'; msgEl.textContent=`✅ ${email} 계정 생성 완료 (역할: ${role}). 사용자에게 임시 비밀번호를 직접 전달해 주세요.`; }
       document.getElementById('admin-new-email').value = '';
       document.getElementById('admin-new-pw').value = '';
     } catch(e) {
