@@ -99,8 +99,8 @@ CREATE POLICY "auth_read"  ON model_test_cases FOR SELECT USING (auth.role() = '
 CREATE POLICY "auth_write" ON model_test_cases FOR INSERT WITH CHECK (auth.role() = 'authenticated');
 
 [3단계] 이 HTML 파일에서 아래 두 줄 수정
-    const SUPABASE_URL  = 'https://xdpdpbenynpzjfrvnoyf.supabase.co';
-    const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhkcGRwYmVueW5wempmcnZub3lmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxMTI5MTIsImV4cCI6MjA4ODY4ODkxMn0.Z8A4_Sm1BOR1wrnu1M0xBRBdi2PhZ8ltI28XNuO9hPg';
+  const SUPABASE_URL  = 'https://YOUR_PROJECT_ID.supabase.co';
+  const SUPABASE_ANON = 'YOUR_ANON_KEY';
 
   → Project Settings > API 에서 확인
 
@@ -1113,14 +1113,23 @@ function bindButtons() {
     _supabase.auth.onAuthStateChange((event, session) => {
       const prevUser = currentUser;
       currentUser = session?.user ?? null;
-      if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
-        // 로그인 성공 시 버튼 상태 복원
+      if (event === 'SIGNED_IN') {
+        // 로그인 버튼 복원
         const loginBtn = document.getElementById('sb-login-btn');
         if (loginBtn) { loginBtn.disabled = false; loginBtn.textContent = '로그인'; }
-        // 와이어프레임 모드 중에는 세션 자동 이동 차단
+        // 와이어프레임 모드면 차단
         if (wireframeMode) return;
-        // 최초 로그인(prevUser가 없을 때)에만 대시보드로 이동
-        if (!prevUser && currentUser) {
+        // SIGNED_IN은 무조건 대시보드로 이동 (prevUser 무관)
+        if (currentUser) {
+          showScreen(1);
+          loadDashboard();
+        }
+      } else if (event === 'INITIAL_SESSION') {
+        // 페이지 로드 시 기존 세션이 있으면 자동으로 대시보드
+        const loginBtn = document.getElementById('sb-login-btn');
+        if (loginBtn) { loginBtn.disabled = false; loginBtn.textContent = '로그인'; }
+        if (wireframeMode) return;
+        if (currentUser) {
           showScreen(1);
           loadDashboard();
         }
@@ -1132,15 +1141,18 @@ function bindButtons() {
     // ── 로그인 ──
     
     // ── 와이어프레임 미리보기 진입 (세션 정리 후 UI만 표시) ──
-    async function enterWireframeMode() {
+    function enterWireframeMode() {
       wireframeMode = true;
-      // 기존 Supabase 세션 정리 (백그라운드, 결과 무관)
-      try { await _supabase.auth.signOut(); } catch(_) {}
-      currentUser = null;
+      currentUser = null;  // UI상 로그인 정보 초기화
+      // 상단 로그인 이메일 표시 숨기기
+      const emailEl = document.getElementById('db-user-email');
+      if (emailEl) emailEl.textContent = '🖼️ 미리보기 모드';
       // 에러 메시지 초기화
       const err = document.getElementById('sb-error');
       if (err) err.textContent = '';
       showScreen(1);
+      // 배경에서 Supabase 세션 정리 (UI에 영향 없음)
+      try { _supabase.auth.signOut(); } catch(_) {}
     }
 
 async function sbLogin() {
