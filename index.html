@@ -1125,11 +1125,13 @@ function bindButtons() {
           loadDashboard();
         }
       } else if (event === 'INITIAL_SESSION') {
-        // 페이지 로드 시 기존 세션이 있으면 자동으로 대시보드
+        // 페이지 로드 시 기존 세션이 있으면 로그인 화면에서만 자동으로 대시보드
         const loginBtn = document.getElementById('sb-login-btn');
         if (loginBtn) { loginBtn.disabled = false; loginBtn.textContent = '로그인'; }
         if (wireframeMode) return;
-        if (currentUser) {
+        // 다른 탭 복귀 등으로 INITIAL_SESSION 재발생 시 이미 대시보드 이상의 화면이면 무시
+        const isOnLoginScreen = document.getElementById('scr0')?.classList.contains('active');
+        if (currentUser && isOnLoginScreen) {
           showScreen(1);
           loadDashboard();
         }
@@ -3414,17 +3416,29 @@ async function sbLogin() {
   }
 
 async function adminInit() {
-    // DB user_roles 테이블 기반 권한 확인
+    // DB user_roles 테이블 기반 권한 확인 (user_id 또는 email 모두 확인)
     let isAdmin = false;
     try {
       if (currentUser) {
-        const { data: roleData } = await _supabase
+        // 1차: user_id 기반 확인
+        const { data: roleById } = await _supabase
           .from('user_roles')
           .select('role')
           .eq('user_id', currentUser.id)
-          .single();
-        isAdmin = roleData?.role === 'admin';
-        // fallback: user_metadata
+          .maybeSingle();
+        if (roleById?.role === 'admin') isAdmin = true;
+
+        // 2차: email 기반 확인 (계정 생성 시 email로 저장된 경우)
+        if (!isAdmin && currentUser.email) {
+          const { data: roleByEmail } = await _supabase
+            .from('user_roles')
+            .select('role')
+            .eq('email', currentUser.email)
+            .maybeSingle();
+          if (roleByEmail?.role === 'admin') isAdmin = true;
+        }
+
+        // 3차: user_metadata fallback
         if (!isAdmin) {
           const meta = currentUser.user_metadata;
           isAdmin = meta?.role === 'admin' || meta?.is_admin === true;
@@ -5365,7 +5379,7 @@ async function scr3LoadCases(propUuid) {
     return parseFloat(value) >= range.min && parseFloat(value) <= range.max;
   }
 
-  function propApplyFilter() {
+  async function propApplyFilter() {
     const fDiam    = parseRange(document.getElementById('flt-diameter')?.value);
     const fPitch   = parseRange(document.getElementById('flt-pitch')?.value);
     const fEae     = parseRange(document.getElementById('flt-eae')?.value);
@@ -5429,9 +5443,8 @@ async function scr3LoadCases(propUuid) {
       return;
     }
 
-    // 기존 renderRows 로직 재사용 위해 임시로 propellerList 스왑 후 renderRows 호출
-    // → 직접 렌더링
-    _renderPropRows(singles, crpPairs, totalSystems);
+    // 정렬+페이지네이션 포함 렌더링
+    await _renderPropRows(singles, crpPairs, totalSystems);
   }
 
   function propResetFilter() {
@@ -5571,7 +5584,7 @@ async function scr3LoadCases(propUuid) {
 
   function propGoPage(page) {
     propCurrentPage = page;
-    loadPropellers();
+    propApplyFilter();
   }
 
   function propSetSort(key) {
